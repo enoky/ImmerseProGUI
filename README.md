@@ -43,24 +43,24 @@
   <img src="./misc/jumbotron.png" />
 </p>
 
-## Abstract
+## Updates
 
-We introduce ImmersePro, an innovative framework specifically designed to transform single-view videos into stereo videos. This framework utilizes a novel dual-branch architecture comprising a disparity branch and a context branch on video data by leveraging spatial-temporal attention mechanisms. ImmersePro employs implicit disparity guidance, enabling the generation of stereo pairs from video sequences without the need for explicit disparity maps, thus reducing potential errors associated with disparity estimation models. In addition to the technical advancements, we introduce the YouTube-SBS dataset, a comprehensive collection of 423 stereo videos sourced from YouTube. This dataset is unprecedented in its scale, featuring over 7 million stereo pairs, and is designed to facilitate training and benchmarking of stereo video generation models. Our experiments demonstrate the effectiveness of ImmersePro in producing high-quality stereo videos, offering significant improvements over existing methods. Compared to the best competitor stereo-from-mono we quantitatively improve the results by 11.76% (L1), 6.39% (SSIM), and 5.10% (PSNR).
+- [11th Jun] We updated the model files and weights to the correct version. Apologies!
 
 ## Running
 
 1. Download the checkpoints from [here](https://huggingface.co/shijianjian/ImmersePro). Then construct the project folder as:
     ```
     ├── experiments_model
-    │   └── immersepro_model_inference
-    │       ├── dis_030000.pth
-    │       ├── gen_030000.pth
-    │       └── opt_030000.pth
+    │   └── immersepro_model_da_inference_da
+    │       ├── dis_035000.pth
+    │       ├── gen_035000.pth
+    │       └── opt_035000.pth
     ├── inference_video.py
     ├── model
     ...
     ```
-2. Run with provided videos with `python inference_video.py -c configs/inference.json`.
+2. Run with provided videos with `python inference_video.py -c configs/inference_da.json`.
 
 
 ## Demo

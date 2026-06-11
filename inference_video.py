@@ -154,7 +154,7 @@ def main_worker_video_list(config, image_list, no_anaglyph=False, no_sbs=False, 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--config', default='configs/train_propainter.json', type=str)
+    parser.add_argument('-c', '--config', default='configs/inference_da.json', type=str)
     parser.add_argument('--input_dir', default="./videos", type=str)
     parser.add_argument('--output_dir', default=".", type=str)
     parser.add_argument('--split_idx', default=0, type=int)
@@ -167,7 +167,6 @@ if __name__ == "__main__":
     # loading configs
     config = json.load(open(args.config))
 
-    # python inference_video.py  -c configs/train_deep3d_painter_v6_1_midas.json --output_dir /ibex/ai/home/shij0c/git/makeit3d/immersepro_clean
     base_dir = args.input_dir
     image_list = [os.path.join(base_dir, f) for f in os.listdir(base_dir) if f.endswith("_input.mp4")]
     main_worker_video_list(

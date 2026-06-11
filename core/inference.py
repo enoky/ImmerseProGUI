@@ -15,6 +15,9 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
 from core.dataset import TestDataset
+import torchvision.transforms as transforms
+from core.utils import (create_random_shape_with_random_motion, Stack,
+                        ToTorchFormatTensor, GroupRandomHorizontalFlip,GroupRandomHorizontalFlowFlip)
 
 
 class Evaluator:
@@ -34,6 +37,11 @@ class Evaluator:
         self.interp_mode = self.config['model']['interp_mode']
         self.load()
 
+        self._to_tensors = transforms.Compose([
+            Stack(),
+            ToTorchFormatTensor(),
+        ])
+
     def load(self):
         """Load netG (and netD)."""
         # get the latest checkpoint
@@ -44,7 +52,7 @@ class Evaluator:
         ]
         ckpts.sort()
         latest_epoch = ckpts[-1][4:] if len(ckpts) > 0 else None
-
+        
         loaded = False
         if latest_epoch is not None:
             gen_path = os.path.join(model_path, f'gen_{int(latest_epoch):06d}.pth')
@@ -135,49 +143,8 @@ class Evaluator:
             if not not_exist:
                 print("skipping", frame_names[0][0], "to", frame_names[-1][0])
                 continue
-            frames = frames.to(device)
-            frames_right = frames_right.to(device)
-            l_t = self.num_local_frames if self.num_local_frames <= len(frame_names) else len(frame_names)
-            b, t, c, h, w = frames.size()
-            gt_local_frames = frames[:, :l_t, ...]
-            expected_frames = frames_right[:, :l_t, ...]
-
-            masked_frames = frames
-            masked_local_frames = masked_frames[:, :l_t, ...]
-
-            # ---- image propagation ----
-            prop_imgs = self.netG.img_propagation(masked_local_frames, None, interpolation=self.interp_mode)
-            updated_frames = masked_frames.clone()
-            prop_local_frames = prop_imgs.view(b, l_t, 3, h, w)  # TODO: confirm
-            updated_frames[:, :l_t, ...] = prop_local_frames
             
-            original_frames = masked_frames.clone()
-            original_frames[:, :l_t, ...] = masked_local_frames.view(b, l_t, 3, h, w)
-
-            # ---- feature propagation + Transformer ----
-            output = self.netG(updated_frames, None, l_t, original_frames=original_frames)
-            if isinstance(output, (list, tuple)) and len(output) == 3:
-                pred_conversion, pred_texture, pred_imgs = output
-                pred_conversion = pred_conversion.view(b, -1, c, h, w)
-                pred_texture = pred_texture.view(b, -1, c, h, w)
-                pred_imgs = pred_imgs.view(b, -1, c, h, w)
-                selection_map = None
-            elif isinstance(output, (list, tuple)) and len(output) == 4:
-                pred_conversion, pred_texture, pred_imgs, selection_map = output
-                pred_conversion = pred_conversion.view(b, -1, c, h, w)
-                pred_imgs = pred_imgs.view(b, -1, c, h, w)
-                pred_texture = pred_texture.view(b, -1, c, h, w)
-                selection_map = selection_map.view(b, -1, 1, h, w)
-            else:
-                raise ValueError
-
-            # get the local frames
-            pred_local_frames = pred_imgs[:, :l_t, ...]
-            pred_local_conversion_frames = pred_conversion[:, :l_t, ...]
-            pred_local_texture_frames = pred_texture[:, :l_t, ...]
-            comp_local_frames = pred_local_frames  # TODO: confirm
-            # comp_imgs = frames * (1. - masks) + pred_imgs * masks
-            comp_imgs = pred_imgs  # TODO: confirm
+            results = self.run_inference(frames)
 
             os.makedirs(os.path.join(self.output_dir, vname[0]), exist_ok=True)
             for t in range(l_t):
@@ -195,38 +162,53 @@ class Evaluator:
 
     def inference_image_list(self, image_list: List[Tuple[str, int]], frame_name_prefix="frame", frame_name_suffix="left.jpg"):
         for i, (folder_path, start_frame_idx) in enumerate(image_list):
-            end_frame_idx = start_frame_idx + self.num_local_frames
-
-            frames = []
-            frames_right = []
-            flows_f, flows_b = [], []
             video_name = [folder_path.split("/")[-1]]
-            frame_names = []
-            for idx in range(start_frame_idx, end_frame_idx):
-                frame_name = f"{frame_name_prefix}_{str(idx).zfill(8)}_{frame_name_suffix}"
-                frame_path = os.path.join(folder_path, "left", frame_name)
-                right_img_path = os.path.join(folder_path, "right", frame_name.replace("left", "right"))
 
-                img = cv2.imread(frame_path)
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                img = cv2.resize(img, self.test_dataset.size, interpolation=cv2.INTER_LINEAR)
-                img = Image.fromarray(img)
+            num_iters = len(os.listdir(os.path.join(folder_path, "left"))) // self.num_local_frames
 
-                right_img = cv2.imread(right_img_path)
-                right_img = cv2.cvtColor(right_img, cv2.COLOR_BGR2RGB)
-                right_img = cv2.resize(right_img, self.test_dataset.size, interpolation=cv2.INTER_LINEAR)
-                right_img = Image.fromarray(right_img)
+            for j in range(num_iters):
+                end_frame_idx = start_frame_idx + self.num_local_frames
+                frame_names = []
 
-                frames.append(img)
-                frames_right.append(right_img)
-                frame_names.append([frame_name])
+                frames = []
+                frames_right = []
+                flows_f, flows_b = [], []
+
+                for idx in range(start_frame_idx, end_frame_idx):
+                    frame_name = f"{frame_name_prefix}_{str(idx).zfill(8)}_{frame_name_suffix}"
+                    frame_path = os.path.join(folder_path, "left", frame_name)
+                    print(frame_path)
+
+                    img = cv2.imread(frame_path)
+                    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                    img = cv2.resize(img, (384, 384), interpolation=cv2.INTER_LINEAR)
+                    img = Image.fromarray(img)
+
+                    # right_img_path = os.path.join(folder_path, "right", frame_name.replace("left", "right"))
+                    # right_img = cv2.imread(right_img_path)
+                    # right_img = cv2.cvtColor(right_img, cv2.COLOR_BGR2RGB)
+                    # right_img = cv2.resize(right_img, (384, 384), interpolation=cv2.INTER_LINEAR)
+                    # right_img = Image.fromarray(right_img)
+
+                    frames.append(img)
+                    # frames_right.append(right_img)
+                    frame_names.append([frame_name])
+                    
+                frame_tensors = self._to_tensors(frames) * 2.0 - 1.0
+                # frames_right_tensors = self._to_tensors(frames_right) * 2.0 - 1.0
+
+                # self.inference([
+                #     (frame_tensors[None], frames_right_tensors[None], 'None', 'None', video_name, frame_names)
+                # ])
+            
+                results = self.run_inference(frame_tensors[None])
                 
-            frame_tensors = self.test_dataset._to_tensors(frames) * 2.0 - 1.0
-            frames_right_tensors = self.test_dataset._to_tensors(frames_right) * 2.0 - 1.0
+                os.makedirs(os.path.join(self.output_dir, video_name[0]), exist_ok=True)
+                for res, name in zip(results, frame_names):
+                    print("Saving", os.path.join(self.output_dir, video_name[0], name[0]))
+                    plt.imsave(os.path.join(self.output_dir, video_name[0], name[0]), res.numpy())
 
-            self.inference([
-                (frame_tensors[None], frames_right_tensors[None], 'None', 'None', video_name, frame_names)
-            ])
+                start_frame_idx = end_frame_idx
 
     def inference_video_list(self, video_list: str, no_anaglyph=True, no_sbs=True):
 
