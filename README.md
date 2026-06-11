@@ -45,22 +45,32 @@
 
 ## Updates
 
-- [11th Jun] We updated the model files and weights to the correct version. Apologies!
+- [11th Jun] We added DepthAnything-based models and weights.
 
 ## Running
 
-1. Download the checkpoints from [here](https://huggingface.co/shijianjian/ImmersePro). Then construct the project folder as:
+1. Download the checkpoints from [here](https://huggingface.co/shijianjian/ImmersePro).
+    ```
+    $ git clone https://huggingface.co/shijianjian/ImmersePro
+    $ mv ImmersePro experiments_model
+    ```
+
+2. Then construct the project folder as:
     ```
     ├── experiments_model
     │   └── immersepro_model_da_inference_da
     │       ├── dis_035000.pth
     │       ├── gen_035000.pth
     │       └── opt_035000.pth
+    │   └── immersepro_model_inference
+    │       ├── dis_030000.pth
+    │       ├── gen_030000.pth
+    │       └── opt_030000.pth
     ├── inference_video.py
     ├── model
     ...
     ```
-2. Run with provided videos with `python inference_video.py -c configs/inference_da.json`.
+3. Run with provided videos with DepthAnything-based model -> `python inference_video.py -c configs/inference_da.json` and MiDAS-based model -> `python inference_video.py -c configs/inference.json`.
 
 
 ## Demo
