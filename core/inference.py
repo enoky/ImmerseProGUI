@@ -20,6 +20,38 @@ from core.utils import (create_random_shape_with_random_motion, Stack,
                         ToTorchFormatTensor, GroupRandomHorizontalFlip,GroupRandomHorizontalFlowFlip)
 
 
+def read_video_cv2(filename):
+    """Read a video into a (T, H, W, C) uint8 RGB tensor. Replaces
+    torchvision.io.read_video, removed in torchvision 0.24."""
+    cap = cv2.VideoCapture(filename)
+    if not cap.isOpened():
+        raise IOError(f"Failed to open video: {filename}")
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    frames = []
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        frames.append(torch.from_numpy(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
+    cap.release()
+    if not frames:
+        raise IOError(f"No frames decoded from video: {filename}")
+    return torch.stack(frames), fps
+
+
+def write_video_cv2(filename, frames, fps):
+    """Write a (T, H, W, C) RGB tensor to an mp4 file. Replaces
+    torchvision.io.write_video, removed in torchvision 0.24."""
+    frames = frames.to(torch.uint8).cpu().numpy()
+    h, w = frames.shape[1:3]
+    writer = cv2.VideoWriter(filename, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
+    if not writer.isOpened():
+        raise IOError(f"Failed to open video writer: {filename}")
+    for frame in frames:
+        writer.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+    writer.release()
+
+
 class Evaluator:
     def __init__(self, config, output_dir, output_index=2):
         self.config = config
@@ -216,8 +248,7 @@ class Evaluator:
 
             video_name = os.path.basename(frame_root)[:-4]
             print("starting", video_name)
-            frames, aframes, info = torchvision.io.read_video(filename=frame_root, pts_unit='sec') # RGB
-            fps = info['video_fps']
+            frames, fps = read_video_cv2(frame_root) # RGB
             frames = frames.permute(0, 3, 1, 2) / 255 * 2.0 - 1.0
             size = frames.shape[-2:]
             frames = F.interpolate(frames, (384, 384), mode="bicubic", align_corners=False)[None]
@@ -233,11 +264,11 @@ class Evaluator:
                 print(f_right.shape, f_left.shape)
                 out = torch.cat([f_left, f_right], dim=-1).permute(0, 2, 3, 1)
                 print(os.path.join(self.output_dir, video_name + "_immersepro_sbs.mp4"))
-                torchvision.io.write_video(os.path.join(self.output_dir, video_name + "_immersepro_sbs.mp4"), (out * 255).long(), fps=fps)
+                write_video_cv2(os.path.join(self.output_dir, video_name + "_immersepro_sbs.mp4"), (out * 255).long(), fps=fps)
 
             if not no_anaglyph:
                 l_r, l_g, l_b = f_left.split(1, dim=1)
                 r_r, r_g, r_b = f_right.split(1, dim=1)
                 out = torch.cat([l_r, r_g, r_b], dim=1).permute(0, 2, 3, 1)
                 print(os.path.join(self.output_dir, video_name + "_immersepro_anaglyph.mp4"))
-                torchvision.io.write_video(os.path.join(self.output_dir, video_name + "_immersepro_anaglyph.mp4"), (out * 255).long(), fps=fps)
+                write_video_cv2(os.path.join(self.output_dir, video_name + "_immersepro_anaglyph.mp4"), (out * 255).long(), fps=fps)

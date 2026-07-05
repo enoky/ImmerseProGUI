@@ -1,0 +1,35 @@
+# ImmersePro requirements
+# Core deep-learning stack (install torch/torchvision with the CUDA build
+# matching your system, e.g. pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130)
+torch
+torchvision
+
+# Model architecture / inference
+numpy
+opencv-python
+Pillow
+einops
+kornia
+timm
+diffusers
+transformers
+matplotlib
+tqdm
+
+# Training / evaluation
+lpips
+scipy
+scikit-image
+imageio
+cvbase
+
+# I/O and utilities
+requests
+lmdb
+
+# Note: scripts/ and core/trainer*.py additionally import a local `RAFT`
+# package (optical flow, from https://github.com/princeton-vl/RAFT) that is
+# not included in this repository and is not pip-installable. It is not
+# needed for inference_video.py.
+# The optional `mc` (memcached) backend in utils/file_client.py also has no
+# pip package; it is only used if you select the memcached file backend.
